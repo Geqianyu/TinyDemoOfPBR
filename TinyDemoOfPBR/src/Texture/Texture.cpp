@@ -348,6 +348,13 @@ void HDR_image_texture::bind_texture(const Shader& _shader, int _texture_index)
 
 }
 
+void HDR_image_texture::draw_background(const Shader& _shader)
+{
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, m_env_cube_map);
+    render_cube();
+}
+
 void HDR_image_texture::render_cube()
 {
     glBindVertexArray(m_cube_VAO);

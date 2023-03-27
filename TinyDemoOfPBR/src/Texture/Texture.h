@@ -55,6 +55,7 @@ public:
     void generate_LUT(const Shader& _shader);
 
     virtual void bind_texture(const Shader& _shader, int _texture_index) override;
+    void draw_background(const Shader& _shader);
 
     inline GLuint get_irradiance_map() const
     {

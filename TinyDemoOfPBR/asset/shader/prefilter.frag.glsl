@@ -1,29 +1,26 @@
 ﻿
 #version 460 core
-out vec4 FragColor;
-in vec3 WorldPos;
+
+out vec4 fragment_color;
+
+in vec3 world_position;
 
 uniform samplerCube environment_map;
 uniform float roughness;
 
 const float PI = 3.14159265359;
-// ----------------------------------------------------------------------------
-float DistributionGGX(vec3 N, vec3 H, float roughness)
+
+float Trowbridge_Reitz_GGX(vec3 normal, vec3 half_vector, float roughness)
 {
-    float a = roughness*roughness;
-    float a2 = a*a;
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH*NdotH;
-
-    float nom   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float normal_dot_half_vector = max(dot(normal, half_vector), 0.0);
+    float normal_dot_half_vector2 = normal_dot_half_vector * normal_dot_half_vector;
+    float denom = (normal_dot_half_vector2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
-
-    return nom / denom;
+    return a2 / denom;
 }
-// ----------------------------------------------------------------------------
-// http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-// efficient VanDerCorpus calculation.
+
 float RadicalInverse_VdC(uint bits) 
 {
      bits = (bits << 16u) | (bits >> 16u);
@@ -31,77 +28,62 @@ float RadicalInverse_VdC(uint bits)
      bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
      bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
      bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-     return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+     return float(bits) * 2.3283064365386963e-10;
 }
-// ----------------------------------------------------------------------------
-vec2 Hammersley(uint i, uint N)
+
+vec2 Hammersley(uint i, uint total)
 {
-	return vec2(float(i)/float(N), RadicalInverse_VdC(i));
+    return vec2(float(i)/float(total), RadicalInverse_VdC(i));
 }
-// ----------------------------------------------------------------------------
-vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
+
+vec3 importance_sample_GGX(vec2 Xi, vec3 normal, float roughness)
 {
-	float a = roughness*roughness;
-	
-	float phi = 2.0 * PI * Xi.x;
-	float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));
-	float sinTheta = sqrt(1.0 - cosTheta*cosTheta);
-	
-	// from spherical coordinates to cartesian coordinates - halfway vector
-	vec3 H;
-	H.x = cos(phi) * sinTheta;
-	H.y = sin(phi) * sinTheta;
-	H.z = cosTheta;
-	
-	// from tangent-space H vector to world-space sample vector
-	vec3 up          = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-	vec3 tangent   = normalize(cross(up, N));
-	vec3 bitangent = cross(N, tangent);
-	
-	vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
-	return normalize(sampleVec);
-}
-// ----------------------------------------------------------------------------
-void main()
-{		
-    vec3 N = normalize(WorldPos);
+    float a = roughness * roughness;
     
-    // make the simplifying assumption that V equals R equals the normal 
-    vec3 R = N;
-    vec3 V = R;
+    float phi = 2.0 * PI * Xi.x;
+    float cos_theta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));
+    float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+
+    vec3 half_vector = vec3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
+    vec3 up = abs(normal.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent   = normalize(cross(up, normal));
+    vec3 bitangent = cross(normal, tangent);
+    
+    vec3 sample_vectorec = tangent * half_vector.x + bitangent * half_vector.y + normal * half_vector.z;
+    return normalize(sample_vectorec);
+}
+
+void main()
+{
+    vec3 normal = normalize(world_position);
+    vec3 reflect_direction = normal;
+    vec3 view_direction = reflect_direction;
 
     const uint SAMPLE_COUNT = 1024u;
-    vec3 prefilteredColor = vec3(0.0);
-    float totalWeight = 0.0;
-    
+    vec3 prefiltered_color = vec3(0.0);
+    float total_weight = 0.0;
+
     for(uint i = 0u; i < SAMPLE_COUNT; ++i)
     {
-        // generates a sample vector that's biased towards the preferred alignment direction (importance sampling).
         vec2 Xi = Hammersley(i, SAMPLE_COUNT);
-        vec3 H = ImportanceSampleGGX(Xi, N, roughness);
-        vec3 L  = normalize(2.0 * dot(V, H) * H - V);
+        vec3 half_vector = importance_sample_GGX(Xi, normal, roughness);
+        vec3 light_direction  = normalize(2.0 * dot(view_direction, half_vector) * half_vector - view_direction);
 
-        float NdotL = max(dot(N, L), 0.0);
-        if(NdotL > 0.0)
+        float normal_dot_light_direction = max(dot(normal, light_direction), 0.0);
+        if(normal_dot_light_direction > 0.0)
         {
-            // sample from the environment's mip level based on roughness/pdf
-            float D   = DistributionGGX(N, H, roughness);
-            float NdotH = max(dot(N, H), 0.0);
-            float HdotV = max(dot(H, V), 0.0);
-            float pdf = D * NdotH / (4.0 * HdotV) + 0.0001; 
-
-            float resolution = 512.0; // resolution of source cubemap (per face)
-            float saTexel  = 4.0 * PI / (6.0 * resolution * resolution);
-            float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
-
-            float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
-            
-            prefilteredColor += textureLod(environment_map, L, mipLevel).rgb * NdotL;
-            totalWeight      += NdotL;
+            float D   = Trowbridge_Reitz_GGX(normal, half_vector, roughness);
+            float normal_dot_half_vector = max(dot(normal, half_vector), 0.0);
+            float half_vector_dot_view_direction = max(dot(half_vector, view_direction), 0.0);
+            float pdf = D * normal_dot_half_vector / (4.0 * half_vector_dot_view_direction) + 0.0001;
+            float resolution = 512.0;
+            float sa_texel  = 4.0 * PI / (6.0 * resolution * resolution);
+            float sa_sample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+            float mip_level = roughness == 0.0 ? 0.0 : 0.5 * log2(sa_sample / sa_texel); 
+            prefiltered_color += textureLod(environment_map, light_direction, mip_level).rgb * normal_dot_light_direction;
+            total_weight += normal_dot_light_direction;
         }
     }
-
-    prefilteredColor = prefilteredColor / totalWeight;
-
-    FragColor = vec4(prefilteredColor, 1.0);
+    prefiltered_color = prefiltered_color / total_weight;
+    fragment_color = vec4(prefiltered_color, 1.0);
 }

@@ -27,27 +27,27 @@ public:
 
     inline void set_albedo(const std::string& _path)
     {
-        m_albedo = std::make_shared<Image_texture>(_path, "albedo_map");
+        m_albedo = std::make_shared<Image_texture>(_path, "material.albedo_map");
     }
 
     inline void set_normal(const std::string& _path)
     {
-        m_normal = std::make_shared<Image_texture>(_path, "normal_map");
+        m_normal = std::make_shared<Image_texture>(_path, "material.normal_map");
     }
 
     inline void set_ao(const std::string& _path)
     {
-        m_ao = std::make_shared<Image_texture>(_path, "ao_map");
+        m_ao = std::make_shared<Image_texture>(_path, "material.ao_map");
     }
 
     inline void set_metallic(const std::string& _path)
     {
-        m_metallic = std::make_shared<Image_texture>(_path, "metallic_map");
+        m_metallic = std::make_shared<Image_texture>(_path, "material.metallic_map");
     }
 
     inline void set_roughness(const std::string& _path)
     {
-        m_roughness = std::make_shared<Image_texture>(_path, "roughness_map");
+        m_roughness = std::make_shared<Image_texture>(_path, "material.roughness_map");
     }
 
     void draw(const Shader& _shader);

@@ -1,12 +1,13 @@
 ﻿
 #version 460 core
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec2 aTexCoords;
 
-out vec2 TexCoords;
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 texture_coord;
+
+out vec2 fragment_texture_coord;
 
 void main()
 {
-    TexCoords = aTexCoords;
-	gl_Position = vec4(aPos, 1.0);
+    fragment_texture_coord = texture_coord;
+    gl_Position = vec4(position, 1.0);
 }

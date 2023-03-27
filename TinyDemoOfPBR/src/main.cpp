@@ -64,17 +64,17 @@ int main()
     glDepthFunc(GL_LEQUAL);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
-    Shader pbr_shader("asset/shader/PRB.vert.glsl", "asset/shader/PRB.frag.glsl");
-    Shader equirectangular_to_cubemap_shader("asset/shader/cubeMap.vert.glsl", "asset/shader/cubeMap.frag.glsl");
+    Shader pbr_shader("asset/shader/PBR.vert.glsl", "asset/shader/PBR.frag.glsl");
+    Shader equirectangular_to_cubemap_shader("asset/shader/cubeMap.vert.glsl", "asset/shader/equirectangularToCubeMap.frag.glsl");
     Shader irradiance_shader("asset/shader/cubeMap.vert.glsl", "asset/shader/irradianceConvolution.frag.glsl");
     Shader prefilter_shader("asset/shader/cubeMap.vert.glsl", "asset/shader/prefilter.frag.glsl");
     Shader brdf_shader("asset/shader/brdf.vert.glsl", "asset/shader/brdf.frag.glsl");
     Shader background_shader("asset/shader/background.vert.glsl", "asset/shader/background.frag.glsl");
 
     pbr_shader.use();
-    pbr_shader.set_int("irradiance_map", 0);
-    pbr_shader.set_int("prefilter_map", 1);
-    pbr_shader.set_int("brdf_LUT_map", 2);
+    pbr_shader.set_int("ibl.irradiance_map", 0);
+    pbr_shader.set_int("ibl.prefilter_map", 1);
+    pbr_shader.set_int("ibl.brdf_LUT_map", 2);
 
     background_shader.use();
     background_shader.set_int("environment_map", 0);
@@ -151,7 +151,7 @@ int main()
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 view = camera.get_view_matrix();
         pbr_shader.set_matrix4("view", view);
-        pbr_shader.set_vec3("camPos", camera.get_position());
+        pbr_shader.set_vec3("camera_position", camera.get_position());
 
         model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(-5.0, 0.0, 2.0));
@@ -177,6 +177,10 @@ int main()
         model = glm::translate(model, glm::vec3(3.0, 0.0, 2.0));
         pbr_shader.set_matrix4("model", model);
         wall_sphere.draw(pbr_shader);
+
+        background_shader.use();
+        background_shader.set_matrix4("view", view);
+        hdr_image_texture.draw_background(background_shader);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
